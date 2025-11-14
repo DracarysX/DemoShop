@@ -11,11 +11,13 @@ export { ClickTracker } from './ClickTracker';
 export type {
     CouponResponse,
     OfferListener,
+    ProductTracker,
     PurchaseData,
     PurchaseItem,
     SDKConfig,
     TrackingEvent
 } from './types';
+export { useTrackProduct } from './useTrackProduct';
 
 /**
  * SDK Version

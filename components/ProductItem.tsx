@@ -1,4 +1,5 @@
 import { ClothingItem } from "@/types";
+import { useTrackProduct } from "@demoshop/sdk";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
@@ -26,9 +27,12 @@ export function ProductItem({
 }: ProductItemProps) {
   const discount = isDiscounted ? 0.2 : 0;
   const discountedPrice = item.price * (1 - discount);
+  
+  // SDK observes this product - tracks views, clicks, and coupons automatically
+  const { onPress, trackClick } = useTrackProduct(item.name, onItemClick);
 
   return (
-    <Pressable onPress={onItemClick} style={styles.card}>
+    <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.imageContainer}>
         <Image source={{ uri: item.imageUrl }} style={styles.image} />
 
@@ -58,8 +62,9 @@ export function ProductItem({
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={(e) => {
+          onPress={async (e) => {
             e.stopPropagation();
+            await trackClick();  // SDK tracks this interaction too
             onAddToCart(item);
           }}
         >

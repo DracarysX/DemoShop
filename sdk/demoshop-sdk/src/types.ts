@@ -21,6 +21,12 @@ export interface TrackingEvent {
   params?: Record<string, string>;
 }
 
+export interface ProductTracker {
+  trackClick: () => void;
+  trackView: () => void;
+  detach: () => void;
+}
+
 export interface PurchaseItem {
   name: string;
   price: number;

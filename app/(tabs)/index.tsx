@@ -42,7 +42,6 @@ export default function ShopScreen() {
   };
 
   const handleItemClick = (item: ClothingItem) => {
-    ClickTracker.track("click_product_item", { productName: item.name });
     setDialogItem(item);
   };
 

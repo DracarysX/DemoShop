@@ -54,7 +54,57 @@ class ClickTrackerService {
   }
 
   /**
-   * Track user events
+   * Track a product automatically (view on mount, click handler, cleanup on unmount)
+   * This is the simplest way to track a product - just call once
+   * @param productName - Name of the product to track
+   * @returns Object with handlePress function and cleanup
+   * 
+   * @example
+   * const { handlePress } = ClickTracker.trackProduct(item.name);
+   */
+  trackProduct(productName: string): {
+    handlePress: () => Promise<void>;
+    cleanup: () => void;
+  } {
+    if (this.config.enableLogging) {
+      console.log(`[DemoShop SDK] Tracking product: ${productName}`);
+    }
+
+    // Automatically track view when product is attached
+    if (this.config.enableLogging) {
+      console.log(`[DemoShop SDK] ${productName} viewed`);
+    }
+
+    // Create press handler that ONLY tracks (no UI callbacks)
+    const handlePress = async () => {
+      const currentCount = this.clickCounts.get(productName) || 0;
+      const newCount = currentCount + 1;
+      this.clickCounts.set(productName, newCount);
+
+      if (this.config.enableLogging) {
+        console.log(`[DemoShop SDK] ${productName} clicked (${newCount} times)`);
+      }
+
+      // Request coupon at 3 clicks, but only once per product
+      if (newCount === 3 && !this.requestedCoupons.has(productName)) {
+        this.requestedCoupons.add(productName);
+        await this.requestCoupon(productName);
+      }
+    };
+
+    // Cleanup function
+    const cleanup = () => {
+      if (this.config.enableLogging) {
+        console.log(`[DemoShop SDK] Stopped tracking: ${productName}`);
+      }
+      // Cleanup logic if needed
+    };
+
+    return { handlePress, cleanup };
+  }
+
+  /**
+   * Track generic events (legacy support)
    * @param eventName - Name of the event
    * @param params - Optional event parameters
    */
@@ -62,21 +112,7 @@ class ClickTrackerService {
     if (this.config.enableLogging) {
       console.log(`[DemoShop SDK] Track event: ${eventName}`, params);
     }
-
-    if (eventName === "click_product_item" && params?.productName) {
-      const productName = params.productName;
-      const currentCount = this.clickCounts.get(productName) || 0;
-      const newCount = currentCount + 1;
-      this.clickCounts.set(productName, newCount);
-
-      // Request coupon at 3 clicks, but only once per product (prevent duplicate requests)
-      if (newCount === 3 && !this.requestedCoupons.has(productName)) {
-        this.requestedCoupons.add(productName);
-        await this.requestCoupon(productName);
-      }
-    }
-    
-    // Note: Other events are just logged, no server communication
+    // Generic event tracking (for analytics, logging, etc.)
   }
 
   /**
