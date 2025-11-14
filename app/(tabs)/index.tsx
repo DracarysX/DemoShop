@@ -18,7 +18,7 @@ export default function ShopScreen() {
   const [dialogItem, setDialogItem] = useState<ClothingItem | null>(null);
 
   useEffect(() => {
-    // Set up SDK listeners (only once on mount)
+    // Set up SDK offer listener (only once on mount)
     const offerListener: OfferListener = {
       onOfferReceived: (productName: string, discount: number, couponId: string) => {
         console.log(`[Shop] Received offer for ${productName}: ${discount * 100}% off (Coupon: ${couponId})`);
@@ -30,9 +30,6 @@ export default function ShopScreen() {
       },
     };
     ClickTracker.setOfferListener(offerListener);
-
-    // Set up global click handler - SDK passes the full item object
-    ClickTracker.setProductClickHandler(setDialogItem);
 
     return () => {
       ClickTracker.setOfferListener({
@@ -49,6 +46,7 @@ export default function ShopScreen() {
     <ProductItem
       item={item}
       onAddToCart={handleAddToCart}
+      onItemClick={(item) => setDialogItem(item)}
       isDiscounted={discountedItems.has(item.name)}
     />
   );

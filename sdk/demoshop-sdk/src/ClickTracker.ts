@@ -9,7 +9,6 @@ class ClickTrackerService {
   private adid: string | null = null;
   private adidPromise: Promise<string>;
   private trackerEnabled: boolean = true;
-  private productClickHandler: ((product: any) => void) | null = null; // Global click handler - receives full product object
   private config: SDKConfig = {
     serverUrl: 'http://10.0.2.2:8080',
     enableLogging: false
@@ -78,7 +77,7 @@ class ClickTrackerService {
       console.log(`[DemoShop SDK] ${productName} viewed`);
     }
 
-    // Create press handler that tracks AND calls global click handler
+    // Create press handler that tracks (middleware logic)
     const handlePress = async () => {
       const currentCount = this.clickCounts.get(productName) || 0;
       const newCount = currentCount + 1;
@@ -94,10 +93,7 @@ class ClickTrackerService {
         await this.requestCoupon(productName);
       }
 
-      // Call global click handler with FULL product object (not just name)
-      if (this.productClickHandler) {
-        this.productClickHandler(product);
-      }
+      // No global handler - developer's callback is called after this in useTrackProduct
     };
 
     // Cleanup function
@@ -218,21 +214,6 @@ class ClickTrackerService {
    */
   setOfferListener(listener: OfferListener): void {
     this.offerListener = listener;
-  }
-
-  /**
-   * Set global product click handler - called whenever ANY product is clicked
-   * Receives the FULL product object, not just the name
-   * @param handler - Callback function receiving the complete product object
-   * 
-   * @example
-   * ClickTracker.setProductClickHandler(setDialogItem);
-   */
-  setProductClickHandler(handler: (product: any) => void): void {
-    this.productClickHandler = handler;
-    if (this.config.enableLogging) {
-      console.log('[DemoShop SDK] Product click handler registered');
-    }
   }
 
   /**

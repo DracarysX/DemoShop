@@ -4,19 +4,21 @@ import { ClickTracker } from './ClickTracker';
 
 /**
  * React hook to automatically track a product
- * Returns a tracked item component that handles ALL interactions automatically
+ * SDK acts as middleware - intercepts clicks, tracks them, then calls your handler
  * 
  * @param product - Product object with at least a 'name' property
+ * @param onItemClick - Developer's click handler (SDK calls this AFTER tracking)
  * @returns TrackedItem component with automatic view, click tracking, and coupon handling
  * 
  * @example
- * const TrackedItem = useTrackProduct(item);
+ * const TrackedItem = useTrackProduct(item, (product) => setDialogItem(product));
  * <TrackedItem style={styles.card}>
  *   <Text>{item.name}</Text>
  * </TrackedItem>
  */
 export function useTrackProduct(
-  product: { name: string; [key: string]: any }
+  product: { name: string; [key: string]: any },
+  onItemClick?: (product: any) => void
 ): ComponentType<PressableProps> {
   const trackerRef = useRef<ReturnType<typeof ClickTracker.trackProduct> | null>(null);
 
@@ -30,14 +32,18 @@ export function useTrackProduct(
     };
   }, [product]);
 
-  // Return a tracked component - SDK handles EVERYTHING
+  // Return a tracked component - SDK intercepts clicks as middleware
   return (props: PressableProps) => {
     const handlePress = async () => {
-      // SDK automatically:
-      // 1. Tracks the click
+      // SDK middleware: Track FIRST
+      // 1. Tracks the click count
       // 2. Requests coupon if needed (3 clicks)
-      // 3. Calls global click handler (opens modal, etc.)
       await trackerRef.current?.handlePress();
+      
+      // THEN call developer's click handler
+      if (onItemClick) {
+        onItemClick(product);
+      }
     };
 
     return <RNPressable {...props} onPress={handlePress} />;

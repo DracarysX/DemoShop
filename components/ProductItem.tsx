@@ -27,7 +27,7 @@ export function ProductItem({
   const discount = isDiscounted ? 0.2 : 0;
   const discountedPrice = item.price * (1 - discount);
   
-  // SDK handles EVERYTHING - tracks views, clicks, coupons, and calls onItemClick
+  // SDK hooks the click - tracks FIRST, then calls onItemClick
   const TrackedItem = useTrackProduct(item, onItemClick);
 
   return (
