@@ -1,5 +1,5 @@
 import { ClothingItem } from "@/types";
-import { useTrackProduct } from "@demoshop/sdk";
+import { trackItem } from "@demoshop/sdk";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
@@ -27,11 +27,11 @@ export function ProductItem({
   const discount = isDiscounted ? 0.2 : 0;
   const discountedPrice = item.price * (1 - discount);
   
-  // SDK hooks the click - tracks FIRST, then calls onItemClick
-  const TrackedItem = useTrackProduct(item, onItemClick);
+  // SDK automatically hooks the onPress prop below
+  const TrackedItem = trackItem(item);
 
   return (
-    <TrackedItem style={styles.card}>
+    <TrackedItem style={styles.card} onPress={() => onItemClick(item)}>
       <View style={styles.imageContainer}>
         <Image source={{ uri: item.imageUrl }} style={styles.image} />
 

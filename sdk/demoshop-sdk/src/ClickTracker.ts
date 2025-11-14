@@ -5,7 +5,7 @@ import { CouponResponse, OfferListener, PurchaseData, SDKConfig } from './types'
 class ClickTrackerService {
   private clickCounts: Map<string, number> = new Map();
   private offerListener: OfferListener | null = null;
-  private requestedCoupons: Set<string> = new Set(); // Track which products already had coupon requested (prevent duplicate requests)
+  private requestedCoupons: Set<string> = new Set();
   private adid: string | null = null;
   private adidPromise: Promise<string>;
   private trackerEnabled: boolean = true;
@@ -18,10 +18,6 @@ class ClickTrackerService {
     this.adidPromise = this.initializeAdId();
   }
 
-  /**
-   * Configure the SDK
-   * @param config - SDK configuration
-   */
   configure(config: Partial<SDKConfig>): void {
     this.config = { ...this.config, ...config };
     if (this.config.enableLogging) {
@@ -53,15 +49,6 @@ class ClickTrackerService {
     }
   }
 
-  /**
-   * Track a product automatically (view on mount, click handler, cleanup on unmount)
-   * This is the simplest way to track a product - just call once
-   * @param product - Full product object (must have a 'name' property)
-   * @returns Object with handlePress function and cleanup
-   * 
-   * @example
-   * const { handlePress } = ClickTracker.trackProduct(item);
-   */
   trackProduct(product: any): {
     handlePress: () => Promise<void>;
     cleanup: () => void;
@@ -69,61 +56,38 @@ class ClickTrackerService {
     const productName = product.name;
     
     if (this.config.enableLogging) {
-      console.log(`[DemoShop SDK] Tracking product: ${productName}`);
+      console.log(`[DemoShop SDK] Tracking: ${productName}`);
     }
 
-    // Automatically track view when product is attached
-    if (this.config.enableLogging) {
-      console.log(`[DemoShop SDK] ${productName} viewed`);
-    }
-
-    // Create press handler that tracks (middleware logic)
     const handlePress = async () => {
       const currentCount = this.clickCounts.get(productName) || 0;
       const newCount = currentCount + 1;
       this.clickCounts.set(productName, newCount);
 
       if (this.config.enableLogging) {
-        console.log(`[DemoShop SDK] ${productName} clicked (${newCount} times)`);
+        console.log(`[DemoShop SDK] ${productName} clicked (${newCount})`);
       }
 
-      // Request coupon at 3 clicks, but only once per product
       if (newCount === 3 && !this.requestedCoupons.has(productName)) {
         this.requestedCoupons.add(productName);
         await this.requestCoupon(productName);
       }
-
-      // No global handler - developer's callback is called after this in useTrackProduct
     };
 
-    // Cleanup function
     const cleanup = () => {
       if (this.config.enableLogging) {
-        console.log(`[DemoShop SDK] Stopped tracking: ${productName}`);
+        console.log(`[DemoShop SDK] Cleanup: ${productName}`);
       }
-      // Cleanup logic if needed
     };
 
     return { handlePress, cleanup };
   }
 
-  /**
-   * Track generic events (legacy support)
-   * @param eventName - Name of the event
-   * @param params - Optional event parameters
-   */
   async track(eventName: string, params?: Record<string, string>): Promise<void> {
     if (this.config.enableLogging) {
-      console.log(`[DemoShop SDK] Track event: ${eventName}`, params);
+      console.log(`[DemoShop SDK] Event: ${eventName}`, params);
     }
-    // Generic event tracking (for analytics, logging, etc.)
   }
-
-  /**
-   * Track a purchase and send to server
-   * @param purchaseData - Purchase details (items, total)
-   * @returns Promise<boolean> - True if successfully sent to server
-   */
   async trackPurchase(purchaseData: PurchaseData): Promise<boolean> {
     try {
       const adid = await this.adidPromise;
@@ -208,51 +172,29 @@ class ClickTrackerService {
     }
   }
 
-  /**
-   * Set offer listener callback
-   * @param listener - Callback for when offers are received
-   */
   setOfferListener(listener: OfferListener): void {
     this.offerListener = listener;
   }
 
-  /**
-   * Get the device advertising ID
-   * @returns Promise resolving to ADID
-   */
   async getAdId(): Promise<string> {
     return await this.adidPromise;
   }
 
-  /**
-   * Reset all tracking data (click counts and coupon request history)
-   * Note: This does NOT clear discount state in the UI - that's managed by the UI layer
-   */
   reset(): void {
     this.clickCounts.clear();
     this.requestedCoupons.clear();
-    
     if (this.config.enableLogging) {
-      console.log('[DemoShop SDK] Reset all tracking data');
+      console.log('[DemoShop SDK] Reset');
     }
   }
 
-  /**
-   * Enable or disable tracking
-   * @param enabled - Whether tracking should be enabled
-   */
   setTrackerEnabled(enabled: boolean): void {
     this.trackerEnabled = enabled;
-    
     if (this.config.enableLogging) {
-      console.log(`[DemoShop SDK] Tracker ${enabled ? 'enabled' : 'disabled'}`);
+      console.log(`[DemoShop SDK] Tracker ${enabled ? 'ON' : 'OFF'}`);
     }
   }
 
-  /**
-   * Check if tracking is enabled
-   * @returns True if tracking is enabled
-   */
   isTrackerEnabled(): boolean {
     return this.trackerEnabled;
   }
