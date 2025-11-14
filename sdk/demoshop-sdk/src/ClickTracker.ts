@@ -9,6 +9,7 @@ class ClickTrackerService {
   private adid: string | null = null;
   private adidPromise: Promise<string>;
   private trackerEnabled: boolean = true;
+  private productClickHandler: ((product: any) => void) | null = null; // Global click handler - receives full product object
   private config: SDKConfig = {
     serverUrl: 'http://10.0.2.2:8080',
     enableLogging: false
@@ -56,16 +57,18 @@ class ClickTrackerService {
   /**
    * Track a product automatically (view on mount, click handler, cleanup on unmount)
    * This is the simplest way to track a product - just call once
-   * @param productName - Name of the product to track
+   * @param product - Full product object (must have a 'name' property)
    * @returns Object with handlePress function and cleanup
    * 
    * @example
-   * const { handlePress } = ClickTracker.trackProduct(item.name);
+   * const { handlePress } = ClickTracker.trackProduct(item);
    */
-  trackProduct(productName: string): {
+  trackProduct(product: any): {
     handlePress: () => Promise<void>;
     cleanup: () => void;
   } {
+    const productName = product.name;
+    
     if (this.config.enableLogging) {
       console.log(`[DemoShop SDK] Tracking product: ${productName}`);
     }
@@ -75,7 +78,7 @@ class ClickTrackerService {
       console.log(`[DemoShop SDK] ${productName} viewed`);
     }
 
-    // Create press handler that ONLY tracks (no UI callbacks)
+    // Create press handler that tracks AND calls global click handler
     const handlePress = async () => {
       const currentCount = this.clickCounts.get(productName) || 0;
       const newCount = currentCount + 1;
@@ -89,6 +92,11 @@ class ClickTrackerService {
       if (newCount === 3 && !this.requestedCoupons.has(productName)) {
         this.requestedCoupons.add(productName);
         await this.requestCoupon(productName);
+      }
+
+      // Call global click handler with FULL product object (not just name)
+      if (this.productClickHandler) {
+        this.productClickHandler(product);
       }
     };
 
@@ -210,6 +218,21 @@ class ClickTrackerService {
    */
   setOfferListener(listener: OfferListener): void {
     this.offerListener = listener;
+  }
+
+  /**
+   * Set global product click handler - called whenever ANY product is clicked
+   * Receives the FULL product object, not just the name
+   * @param handler - Callback function receiving the complete product object
+   * 
+   * @example
+   * ClickTracker.setProductClickHandler(setDialogItem);
+   */
+  setProductClickHandler(handler: (product: any) => void): void {
+    this.productClickHandler = handler;
+    if (this.config.enableLogging) {
+      console.log('[DemoShop SDK] Product click handler registered');
+    }
   }
 
   /**

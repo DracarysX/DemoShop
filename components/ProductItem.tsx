@@ -5,7 +5,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import {
     Image,
-    Pressable,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -15,7 +14,7 @@ import {
 interface ProductItemProps {
   item: ClothingItem;
   onAddToCart: (item: ClothingItem) => void;
-  onItemClick: () => void;
+  onItemClick: (item: ClothingItem) => void;
   isDiscounted: boolean;
 }
 
@@ -28,11 +27,11 @@ export function ProductItem({
   const discount = isDiscounted ? 0.2 : 0;
   const discountedPrice = item.price * (1 - discount);
   
-  // SDK observes this product - tracks views, clicks, and coupons automatically
-  const { onPress, trackClick } = useTrackProduct(item.name, onItemClick);
+  // SDK handles EVERYTHING - tracks views, clicks, coupons, and calls onItemClick
+  const TrackedItem = useTrackProduct(item, onItemClick);
 
   return (
-    <Pressable onPress={onPress} style={styles.card}>
+    <TrackedItem style={styles.card}>
       <View style={styles.imageContainer}>
         <Image source={{ uri: item.imageUrl }} style={styles.image} />
 
@@ -62,16 +61,15 @@ export function ProductItem({
 
         <TouchableOpacity
           style={styles.addButton}
-          onPress={async (e) => {
+          onPress={(e) => {
             e.stopPropagation();
-            await trackClick();  // SDK tracks this interaction too
             onAddToCart(item);
           }}
         >
           <Ionicons name="cart" size={24} color="#fff" />
         </TouchableOpacity>
       </View>
-    </Pressable>
+    </TrackedItem>
   );
 }
 
