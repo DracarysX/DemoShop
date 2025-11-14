@@ -1,50 +1,124 @@
-# Welcome to your Expo app 👋
+# DemoShop - React Native E-Commerce App
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A modern e-commerce mobile application built with React Native and Expo, featuring a clean shopping interface with dynamic discounts.
 
-## Get started
+## Features
 
-1. Install dependencies
+- **Product Catalog**: Browse clothing items with beautiful image cards
+- **Shopping Cart**: Add items to cart and manage purchases
+- **Dynamic Discounts**: Get 20% off after viewing an item 3 times
+- **Discount Notifications**: Toast notifications for special offers
+- **Product Details**: View detailed product information in a modal
+- **Click Tracking**: Analytics tracking for user interactions
 
-   ```bash
-   npm install
-   ```
+## Tech Stack
 
-2. Start the app
+- **React Native** - Mobile framework
+- **Expo** - Development platform
+- **Expo Router** - File-based routing
+- **TypeScript** - Type safety
+- **Expo Linear Gradient** - UI gradients
 
-   ```bash
-   npx expo start
-   ```
+## Getting Started
 
-In the output, you'll find options to open the app in a
+### Prerequisites
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Node.js (v14 or higher)
+- npm or yarn
+- Android Studio (for Android development) or Xcode (for iOS development)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Installation
 
-## Get a fresh project
-
-When you're ready, run:
-
+1. Clone the repository
+2. Install dependencies:
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Running the App
 
-## Learn more
+#### Development Build (Recommended)
 
-To learn more about developing your project with Expo, look at the following resources:
+Build and run on Android:
+```bash
+npx expo run:android
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Build and run on iOS (macOS only):
+```bash
+npx expo run:ios
+```
 
-## Join the community
+**Expo Go (Quick testing)**
 
-Join our community of developers creating universal apps.
+Start the development server:
+```bash
+npm start
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Then scan the QR code with Expo Go app on your device.
+
+**Note**: For Android emulator, use `10.0.2.2:8080` instead of `localhost:8080` to connect to the host machine.
+
+### Building for Production
+
+Using EAS Build:
+```bash
+# Login to Expo
+eas login
+
+# Build for Android
+eas build --platform android
+
+# Build for iOS
+eas build --platform ios
+```
+
+## Project Structure
+
+```
+├── app/
+│   ├── (tabs)/
+│   │   ├── shop.tsx       # Main product listing screen
+│   │   ├── cart.tsx       # Shopping cart screen
+│   │   └── _layout.tsx    # Tab navigation layout
+│   └── _layout.tsx        # Root layout
+├── components/
+│   ├── ProductItem.tsx           # Product card component
+│   ├── ProductDetailModal.tsx    # Product details modal
+│   └── DiscountToast.tsx         # Discount notification
+├── services/
+│   └── ClickTracker.ts    # Analytics and discount logic
+├── types/
+│   └── index.ts           # TypeScript types and data
+└── constants/
+    └── theme.ts           # App theme configuration
+```
+
+## How It Works
+
+### Discount System with Server Integration
+
+The app features a smart discount system that integrates with a coupon server:
+1. User clicks on a product item to view details (click tracking)
+2. After 3 clicks on the same product, the app requests a coupon from the server
+3. **Server Request**: `POST http://localhost:8080/coupon`
+   - Sends: `{ "adid": "unique-device-id", "productName": "T-Shirt" }`
+   - Receives: `{ "couponId": "COUPON-ABC123", "discount": 0.2 }`
+4. A toast notification appears showing the discount
+5. The discount is applied to that product in both the catalog and cart
+6. Coupon ID is tracked for analytics
+
+### Navigation
+
+- **Shop Tab**: Browse all available products
+- **Cart Tab**: View and purchase items in your cart
+- Products can be added to cart from both the product grid and detail modal
+
+## Contributing
+
+Feel free to submit issues and enhancement requests!
+
+## License
+
+MIT
