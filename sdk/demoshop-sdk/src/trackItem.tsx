@@ -39,9 +39,8 @@ export function trackItem(
             if (isVisible) {
               visibleTimeMs += 1000; // Add 1 second
               
-              // Record a view event every 10 seconds (10000ms)
-              if (visibleTimeMs - lastViewEventMs >= 10000) {
-                trackerRef.current?.recordView(10000);
+              if (visibleTimeMs - lastViewEventMs >= 5000) {
+                trackerRef.current?.recordView(5000);
                 lastViewEventMs = visibleTimeMs;
               }
             } else {
