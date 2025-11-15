@@ -68,8 +68,34 @@ async def get_product_similarity(threshold: float = 0.1):
             view_duration = event.get("viewDuration", 0)
             engagement_matrix[product_idx, user_idx] += (view_duration / 1000.0) * 0.1
     
-    # Calculate cosine similarity between products
-    similarity_matrix = cosine_similarity(engagement_matrix)
+    # Calculate similarity based on shared user engagement
+    # This gives intuitive results: 100% = same users with same engagement, 0% = no shared users
+    n_products = len(products_list)
+    similarity_matrix = np.zeros((n_products, n_products))
+    
+    for i in range(n_products):
+        for j in range(i, n_products):
+            if i == j:
+                similarity_matrix[i, j] = 1.0
+            else:
+                # Get engagement vectors for both products
+                vec_i = engagement_matrix[i, :]
+                vec_j = engagement_matrix[j, :]
+                
+                # Calculate shared engagement (minimum of both)
+                shared_engagement = np.minimum(vec_i, vec_j).sum()
+                
+                # Calculate total engagement (maximum of both) 
+                total_engagement = np.maximum(vec_i, vec_j).sum()
+                
+                # Similarity = shared / total (Jaccard-like coefficient)
+                if total_engagement > 0:
+                    similarity = shared_engagement / total_engagement
+                else:
+                    similarity = 0.0
+                
+                similarity_matrix[i, j] = similarity
+                similarity_matrix[j, i] = similarity  # Symmetric
     
     # Build graph data (nodes and edges)
     nodes = []
