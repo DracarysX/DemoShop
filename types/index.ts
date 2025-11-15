@@ -1,4 +1,5 @@
 export interface ClothingItem {
+  id: string;
   name: string;
   price: number;
   imageUrl: string;
@@ -7,6 +8,7 @@ export interface ClothingItem {
 
 export const clothingItems: ClothingItem[] = [
   {
+    id: "PROD-001",
     name: "T-Shirt",
     price: 19.99,
     imageUrl:
@@ -14,6 +16,7 @@ export const clothingItems: ClothingItem[] = [
     description: "A classic cotton t-shirt for everyday wear.",
   },
   {
+    id: "PROD-002",
     name: "Jeans",
     price: 49.99,
     imageUrl:
@@ -21,6 +24,7 @@ export const clothingItems: ClothingItem[] = [
     description: "Stylish and comfortable denim jeans.",
   },
   {
+    id: "PROD-003",
     name: "Jacket",
     price: 79.99,
     imageUrl:
@@ -28,6 +32,7 @@ export const clothingItems: ClothingItem[] = [
     description: "A fashionable jacket to complete your look.",
   },
   {
+    id: "PROD-004",
     name: "Sweater",
     price: 59.99,
     imageUrl:
@@ -35,6 +40,7 @@ export const clothingItems: ClothingItem[] = [
     description: "A stylish sweater to keep you warm.",
   },
   {
+    id: "PROD-005",
     name: "Shorts",
     price: 29.99,
     imageUrl:
@@ -42,6 +48,7 @@ export const clothingItems: ClothingItem[] = [
     description: "Casual shorts for a relaxed day out.",
   },
   {
+    id: "PROD-006",
     name: "Boots",
     price: 99.99,
     imageUrl:

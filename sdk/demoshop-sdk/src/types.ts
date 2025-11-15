@@ -28,6 +28,7 @@ export interface ProductTracker {
 }
 
 export interface PurchaseItem {
+  id: string;
   name: string;
   price: number;
   discount: number;
@@ -42,6 +43,7 @@ export interface PurchaseData {
 
 export interface AnalyticsEvent {
   eventType: 'click' | 'view';
+  productId: string;
   productName: string;
   timestamp: number;
   viewDuration?: number;

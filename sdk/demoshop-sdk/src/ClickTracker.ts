@@ -58,10 +58,11 @@ class ClickTrackerService {
     cleanup: () => void;
     recordView: (viewDuration: number) => void;
   } {
+    const productId = product.id;
     const productName = product.name;
     
     if (this.config.enableLogging) {
-      console.log(`[DemoShop SDK] Tracking: ${productName}`);
+      console.log(`[DemoShop SDK] Tracking: ${productId} - ${productName}`);
     }
 
     const handlePress = async () => {
@@ -71,12 +72,13 @@ class ClickTrackerService {
 
       this.recordEvent({
         eventType: 'click',
+        productId,
         productName,
         timestamp: Date.now(),
       });
 
       if (this.config.enableLogging) {
-        console.log(`[DemoShop SDK] ${productName} clicked (${newCount})`);
+        console.log(`[DemoShop SDK] ${productId} - ${productName} clicked (${newCount})`);
       }
 
       if (newCount === 3 && !this.requestedCoupons.has(productName)) {
@@ -88,6 +90,7 @@ class ClickTrackerService {
     const recordView = (viewDuration: number) => {
       this.recordEvent({
         eventType: 'view',
+        productId,
         productName,
         timestamp: Date.now(),
         viewDuration,
@@ -96,7 +99,7 @@ class ClickTrackerService {
 
     const cleanup = () => {
       if (this.config.enableLogging) {
-        console.log(`[DemoShop SDK] Cleanup: ${productName}`);
+        console.log(`[DemoShop SDK] Cleanup: ${productId} - ${productName}`);
       }
     };
 

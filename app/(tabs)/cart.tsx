@@ -61,6 +61,7 @@ export default function CartScreen() {
     try {
       // Calculate items with discounts
       const items = cart.map(item => ({
+        id: item.id,
         name: item.name,
         price: item.price,
         discount: discountedItems.has(item.name) ? 0.2 : 0,
@@ -148,7 +149,7 @@ export default function CartScreen() {
           <FlatList
             data={cart}
             renderItem={renderCartItem}
-            keyExtractor={(item, index) => `${item.name}-${index}`}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
             contentContainerStyle={styles.list}
           />
           <View style={styles.footer}>

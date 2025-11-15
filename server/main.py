@@ -12,6 +12,7 @@ from typing import List, Dict
 from collections import defaultdict
 import random
 import string
+import json
 
 app = FastAPI(title="DemoShop Coupon API")
 
@@ -33,6 +34,7 @@ class CouponResponse(BaseModel):
     discount: float
 
 class PurchaseItem(BaseModel):
+    id: str
     name: str
     price: float
     discount: float
@@ -50,7 +52,8 @@ class PurchaseResponse(BaseModel):
     timestamp: str
 
 class AnalyticsEvent(BaseModel):
-    eventType: str  # 'view_start', 'view_end', 'view', 'click'
+    eventType: str  # 'view', 'click'
+    productId: str
     productName: str
     timestamp: int
     viewDuration: int | None = None
@@ -193,6 +196,8 @@ async def record_purchase(request: PurchaseRequest):
     print(f"[Server] Received purchase:")
     print(f"  - ADID: {request.adid}")
     print(f"  - Items: {len(request.items)}")
+    for item in request.items:
+        print(f"    • {item.id} - {item.name}: ${item.finalPrice:.2f}")
     print(f"  - Total: ${request.total:.2f}")
     print(f"  - Tracker: {'ON' if request.trackerEnabled else 'OFF'}")
     
@@ -255,6 +260,7 @@ async def receive_analytics_events(batch: AnalyticsBatch):
         event_record = {
             "adid": batch.adid,
             "eventType": event.eventType,
+            "productId": event.productId,
             "productName": event.productName,
             "timestamp": event.timestamp,
             "viewDuration": event.viewDuration,
@@ -263,9 +269,9 @@ async def receive_analytics_events(batch: AnalyticsBatch):
         analytics_events.append(event_record)
         
         if event.viewDuration is not None:
-            print(f"  - {event.eventType}: {event.productName} (duration: {event.viewDuration}ms)")
+            print(f"  - {event.eventType}: {event.productId} - {event.productName} (duration: {event.viewDuration}ms)")
         else:
-            print(f"  - {event.eventType}: {event.productName}")
+            print(f"  - {event.eventType}: {event.productId} - {event.productName}")
     
     return {"success": True, "eventsReceived": len(batch.events)}
 
@@ -292,10 +298,23 @@ async def get_realtime_analytics():
         "unique_adids": set()
     })
     
+    # Track purchases by ADID
+    adid_purchases: Dict[str, List[Dict]] = defaultdict(list)
+    
+    # Track product performance per ADID
+    adid_product_performance: Dict[str, Dict[str, Dict]] = defaultdict(lambda: defaultdict(lambda: {
+        "clicks": 0,
+        "view_duration": 0,
+        "purchased": 0,
+        "revenue": 0.0
+    }))
+    
     for event in analytics_events:
         adid = event["adid"]
+        product_id = event.get("productId", "unknown")
         product_name = event["productName"]
         event_type = event["eventType"]
+        product_key = f"{product_id} - {product_name}"
         
         # Update last activity
         adid_stats[adid]["last_activity"] = event["receivedAt"]
@@ -303,26 +322,56 @@ async def get_realtime_analytics():
         # Track by event type
         if event_type == "view_start":
             adid_stats[adid]["view_starts"] += 1
-            adid_stats[adid]["products_viewed"].add(product_name)
-            product_stats[product_name]["unique_adids"].add(adid)
+            adid_stats[adid]["products_viewed"].add(product_key)
+            product_stats[product_key]["unique_adids"].add(adid)
         elif event_type == "view_end":
             adid_stats[adid]["view_ends"] += 1
             if event["viewDuration"] is not None:
                 duration = event["viewDuration"]
                 adid_stats[adid]["total_view_duration"] += duration
-                product_stats[product_name]["total_view_duration"] += duration
+                product_stats[product_key]["total_view_duration"] += duration
+                adid_product_performance[adid][product_key]["view_duration"] += duration
         elif event_type == "view":
             # Periodic view event (every 10 seconds of continuous viewing)
             if event["viewDuration"] is not None:
                 duration = event["viewDuration"]
                 adid_stats[adid]["total_view_duration"] += duration
-                product_stats[product_name]["total_view_duration"] += duration
-                adid_stats[adid]["products_viewed"].add(product_name)
-                product_stats[product_name]["unique_adids"].add(adid)
+                product_stats[product_key]["total_view_duration"] += duration
+                adid_stats[adid]["products_viewed"].add(product_key)
+                product_stats[product_key]["unique_adids"].add(adid)
+                adid_product_performance[adid][product_key]["view_duration"] += duration
         elif event_type == "click":
             adid_stats[adid]["clicks"] += 1
-            adid_stats[adid]["products_clicked"].add(product_name)
-            product_stats[product_name]["clicks"] += 1
+            adid_stats[adid]["products_clicked"].add(product_key)
+            product_stats[product_key]["clicks"] += 1
+            adid_product_performance[adid][product_key]["clicks"] += 1
+    
+    # Aggregate purchases by ADID
+    for purchase in purchase_history:
+        adid = purchase["adid"]
+        for item in purchase["items"]:
+            product_id = item.get("id", "unknown")
+            product_name = item["name"]
+            product_key = f"{product_id} - {product_name}"
+            
+            # Update purchase stats in product performance
+            adid_product_performance[adid][product_key]["purchased"] += 1
+            adid_product_performance[adid][product_key]["revenue"] += item["finalPrice"]
+            
+            # Find if product already exists for this ADID
+            existing = next((p for p in adid_purchases[adid] if p["product"] == product_key), None)
+            if existing:
+                existing["quantity"] += 1
+                existing["revenue"] += item["finalPrice"]
+                if item["discount"] > 0:
+                    existing["discounted"] += 1
+            else:
+                adid_purchases[adid].append({
+                    "product": product_key,
+                    "quantity": 1,
+                    "revenue": item["finalPrice"],
+                    "discounted": 1 if item["discount"] > 0 else 0
+                })
     
     # Generate HTML
     html_content = """
@@ -417,6 +466,35 @@ async def get_realtime_analytics():
                 font-weight: bold;
                 margin: 30px 0 15px 0;
             }
+            .user-selector {
+                background: white;
+                padding: 25px;
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                margin-bottom: 30px;
+            }
+            .user-selector h3 {
+                color: #2d3748;
+                font-size: 18px;
+                margin-bottom: 15px;
+            }
+            .user-selector select {
+                width: 100%;
+                padding: 12px;
+                font-size: 16px;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                background: white;
+                color: #2d3748;
+                cursor: pointer;
+                outline: none;
+            }
+            .user-selector select:focus {
+                border-color: #667eea;
+            }
+            #userPerformanceTable {
+                margin-bottom: 30px;
+            }
         </style>
     </head>
     <body>
@@ -431,6 +509,42 @@ async def get_realtime_analytics():
                     <h3>Unique ADIDs</h3>
                     <div class="value">""" + str(len(adid_stats)) + """</div>
                 </div>
+            </div>
+            
+            <div class="user-selector">
+                <h3>📊 User Product Performance</h3>
+                <select id="adidSelector" onchange="updateUserPerformance()">"""
+    
+    if len(adid_stats) == 0:
+        html_content += """
+                    <option value="">No user activity yet</option>"""
+    else:
+        html_content += """
+                    <option value="">Select a user (ADID) to view their performance...</option>"""
+        # Add options for each ADID from analytics events
+        for adid in sorted(adid_stats.keys(), key=lambda x: x):
+            html_content += f"""
+                    <option value="{adid}">{adid}</option>"""
+    
+    html_content += """
+                </select>
+            </div>
+            
+            <div id="userPerformanceTable" style="display: none;">
+                <h3 id="userPerformanceTitle" class="section-title">User Product Performance</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Clicks</th>
+                            <th>View Time</th>
+                            <th>Purchased</th>
+                            <th>Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userPerformanceBody">
+                    </tbody>
+                </table>
             </div>
             
             <div class="section-title">Product Performance</div>
@@ -464,6 +578,84 @@ async def get_realtime_analytics():
                 </tbody>
             </table>
         </div>
+        
+        <script>
+            // Store product performance data for each ADID
+            const adidProductPerformance = """
+    
+    # Convert adid_product_performance to JSON-safe format
+    performance_data_json = {}
+    for adid, products in adid_product_performance.items():
+        performance_data_json[adid] = dict(products)
+    
+    html_content += json.dumps(performance_data_json)
+    
+    html_content += """;
+            
+            function updateUserPerformance() {
+                const selector = document.getElementById('adidSelector');
+                const selectedAdid = selector.value;
+                const table = document.getElementById('userPerformanceTable');
+                const tbody = document.getElementById('userPerformanceBody');
+                
+                // Store selection in localStorage
+                if (selectedAdid) {
+                    localStorage.setItem('selectedAdid', selectedAdid);
+                } else {
+                    localStorage.removeItem('selectedAdid');
+                }
+                
+                if (!selectedAdid || !adidProductPerformance[selectedAdid]) {
+                    table.style.display = 'none';
+                    return;
+                }
+                
+                table.style.display = 'block';
+                
+                const products = adidProductPerformance[selectedAdid];
+                
+                // Convert to array and sort by clicks + purchases (descending)
+                const sortedProducts = Object.entries(products).sort((a, b) => {
+                    const scoreA = a[1].clicks + (a[1].purchased * 10);
+                    const scoreB = b[1].clicks + (b[1].purchased * 10);
+                    return scoreB - scoreA;
+                });
+                
+                let html = '';
+                sortedProducts.forEach(([productKey, stats]) => {
+                    const viewSeconds = (stats.view_duration / 1000).toFixed(1);
+                    html += `
+                        <tr>
+                            <td><strong>${productKey}</strong></td>
+                            <td>${stats.clicks}</td>
+                            <td>${viewSeconds}s</td>
+                            <td>${stats.purchased}</td>
+                            <td>$${stats.revenue.toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+                
+                if (html === '') {
+                    html = '<tr><td colspan="5" style="text-align: center; color: #999;">No product interactions yet</td></tr>';
+                }
+                
+                tbody.innerHTML = html;
+            }
+            
+            // Restore selection on page load
+            window.addEventListener('DOMContentLoaded', function() {
+                const savedAdid = localStorage.getItem('selectedAdid');
+                if (savedAdid) {
+                    const selector = document.getElementById('adidSelector');
+                    // Check if the option still exists
+                    const option = Array.from(selector.options).find(opt => opt.value === savedAdid);
+                    if (option) {
+                        selector.value = savedAdid;
+                        updateUserPerformance();
+                    }
+                }
+            });
+        </script>
     </body>
     </html>
     """
@@ -538,15 +730,17 @@ async def get_analytics():
             analytics[adid]["total_savings"] += savings
             
             # Product-level analytics
+            product_id = item.get("id", "unknown")
             product_name = item["name"]
+            product_key = f"{product_id} - {product_name}"
             if tracker_enabled:
-                product_analytics[product_name]["tracker_on_with_coupon"]["quantity"] += 1
-                product_analytics[product_name]["tracker_on_with_coupon"]["revenue"] += final_price
-                product_analytics[product_name]["tracker_on_with_coupon"]["savings"] += savings
+                product_analytics[product_key]["tracker_on_with_coupon"]["quantity"] += 1
+                product_analytics[product_key]["tracker_on_with_coupon"]["revenue"] += final_price
+                product_analytics[product_key]["tracker_on_with_coupon"]["savings"] += savings
             else:
-                product_analytics[product_name]["tracker_off"]["quantity"] += 1
-                product_analytics[product_name]["tracker_off"]["revenue"] += final_price
-                product_analytics[product_name]["tracker_off"]["savings"] += savings
+                product_analytics[product_key]["tracker_off"]["quantity"] += 1
+                product_analytics[product_key]["tracker_off"]["revenue"] += final_price
+                product_analytics[product_key]["tracker_off"]["savings"] += savings
         
         # Process items WITHOUT coupons
         for item in non_discounted_items:
@@ -555,13 +749,15 @@ async def get_analytics():
             analytics[adid]["items_purchased"] += 1
             
             # Product-level analytics
+            product_id = item.get("id", "unknown")
             product_name = item["name"]
+            product_key = f"{product_id} - {product_name}"
             if tracker_enabled:
-                product_analytics[product_name]["tracker_on_without_coupon"]["quantity"] += 1
-                product_analytics[product_name]["tracker_on_without_coupon"]["revenue"] += item["finalPrice"]
+                product_analytics[product_key]["tracker_on_without_coupon"]["quantity"] += 1
+                product_analytics[product_key]["tracker_on_without_coupon"]["revenue"] += item["finalPrice"]
             else:
-                product_analytics[product_name]["tracker_off"]["quantity"] += 1
-                product_analytics[product_name]["tracker_off"]["revenue"] += item["finalPrice"]
+                product_analytics[product_key]["tracker_off"]["quantity"] += 1
+                product_analytics[product_key]["tracker_off"]["revenue"] += item["finalPrice"]
     
     # Calculate totals by tracker status and coupon usage
     total_tracker_on = sum(a["total_revenue"] for a in analytics.values() if a["tracker_enabled"])

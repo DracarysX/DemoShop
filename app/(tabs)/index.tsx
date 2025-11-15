@@ -79,7 +79,7 @@ export default function ShopScreen() {
       <FlatList
         data={clothingItems}
         renderItem={renderItem}
-        keyExtractor={(item, index) => `${item.name}-${index}`}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
       />
 
