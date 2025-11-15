@@ -1,6 +1,6 @@
 import * as Application from 'expo-application';
 import { Platform } from 'react-native';
-import { CouponResponse, OfferListener, PurchaseData, SDKConfig } from './types';
+import { AnalyticsEvent, CouponResponse, OfferListener, PurchaseData, SDKConfig } from './types';
 
 class ClickTrackerService {
   private clickCounts: Map<string, number> = new Map();
@@ -13,9 +13,13 @@ class ClickTrackerService {
     serverUrl: 'http://10.0.2.2:8080',
     enableLogging: false
   };
+  
+  private analyticsQueue: AnalyticsEvent[] = [];
+  private batchInterval: number | null = null;
 
   constructor() {
     this.adidPromise = this.initializeAdId();
+    this.startBatchSender();
   }
 
   configure(config: Partial<SDKConfig>): void {
@@ -52,6 +56,7 @@ class ClickTrackerService {
   trackProduct(product: any): {
     handlePress: () => Promise<void>;
     cleanup: () => void;
+    recordView: (viewDuration: number) => void;
   } {
     const productName = product.name;
     
@@ -64,6 +69,12 @@ class ClickTrackerService {
       const newCount = currentCount + 1;
       this.clickCounts.set(productName, newCount);
 
+      this.recordEvent({
+        eventType: 'click',
+        productName,
+        timestamp: Date.now(),
+      });
+
       if (this.config.enableLogging) {
         console.log(`[DemoShop SDK] ${productName} clicked (${newCount})`);
       }
@@ -74,13 +85,22 @@ class ClickTrackerService {
       }
     };
 
+    const recordView = (viewDuration: number) => {
+      this.recordEvent({
+        eventType: 'view',
+        productName,
+        timestamp: Date.now(),
+        viewDuration,
+      });
+    };
+
     const cleanup = () => {
       if (this.config.enableLogging) {
         console.log(`[DemoShop SDK] Cleanup: ${productName}`);
       }
     };
 
-    return { handlePress, cleanup };
+    return { handlePress, cleanup, recordView };
   }
 
   async track(eventName: string, params?: Record<string, string>): Promise<void> {
@@ -197,6 +217,57 @@ class ClickTrackerService {
 
   isTrackerEnabled(): boolean {
     return this.trackerEnabled;
+  }
+
+  public recordEvent(event: AnalyticsEvent): void {
+    this.analyticsQueue.push(event);
+    if (this.config.enableLogging) {
+      console.log(`[DemoShop SDK] Event recorded:`, event);
+    }
+  }
+
+  private startBatchSender(): void {
+    this.batchInterval = setInterval(async () => {
+      if (this.analyticsQueue.length > 0) {
+        await this.sendAnalyticsBatch();
+      }
+    }, 5000);
+  }
+
+  private async sendAnalyticsBatch(): Promise<void> {
+    if (this.analyticsQueue.length === 0) return;
+
+    const adid = await this.adidPromise;
+    const eventsToSend = [...this.analyticsQueue];
+    this.analyticsQueue = [];
+
+    try {
+      const response = await fetch(`${this.config.serverUrl}/analytics-events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adid,
+          events: eventsToSend,
+        }),
+      });
+
+      if (!response.ok) {
+        console.error(`[DemoShop SDK] Failed to send analytics: ${response.status}`);
+        this.analyticsQueue.push(...eventsToSend);
+      }
+    } catch (error) {
+      console.error('[DemoShop SDK] Error sending analytics:', error);
+      this.analyticsQueue.push(...eventsToSend);
+    }
+  }
+
+  stopBatchSender(): void {
+    if (this.batchInterval !== null) {
+      clearInterval(this.batchInterval);
+      this.batchInterval = null;
+    }
   }
 }
 

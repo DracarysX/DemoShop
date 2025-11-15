@@ -40,3 +40,15 @@ export interface PurchaseData {
   trackerEnabled?: boolean;
 }
 
+export interface AnalyticsEvent {
+  eventType: 'click' | 'view';
+  productName: string;
+  timestamp: number;
+  viewDuration?: number;
+}
+
+export interface AnalyticsBatch {
+  adid: string;
+  events: AnalyticsEvent[];
+}
+

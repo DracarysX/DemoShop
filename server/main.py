@@ -49,9 +49,20 @@ class PurchaseResponse(BaseModel):
     purchaseId: str
     timestamp: str
 
+class AnalyticsEvent(BaseModel):
+    eventType: str  # 'view_start', 'view_end', 'view', 'click'
+    productName: str
+    timestamp: int
+    viewDuration: int | None = None
+
+class AnalyticsBatch(BaseModel):
+    adid: str
+    events: List[AnalyticsEvent]
+
 # In-memory storage for demo purposes
 coupon_history = []
 purchase_history = []
+analytics_events = []  # Store all analytics events
 
 def generate_coupon_id() -> str:
     """Generate a unique coupon ID"""
@@ -226,6 +237,238 @@ async def record_purchase(request: PurchaseRequest):
         purchaseId=purchase_id,
         timestamp=purchase_record["timestamp"]
     )
+
+@app.post("/analytics-events")
+async def receive_analytics_events(batch: AnalyticsBatch):
+    """
+    Receive a batch of analytics events from SDK
+    
+    Args:
+        batch: Contains adid and list of events
+        
+    Returns:
+        Success status
+    """
+    print(f"[Server] Received {len(batch.events)} events from ADID: {batch.adid}")
+    
+    for event in batch.events:
+        event_record = {
+            "adid": batch.adid,
+            "eventType": event.eventType,
+            "productName": event.productName,
+            "timestamp": event.timestamp,
+            "viewDuration": event.viewDuration,
+            "receivedAt": datetime.now().isoformat()
+        }
+        analytics_events.append(event_record)
+        
+        if event.viewDuration is not None:
+            print(f"  - {event.eventType}: {event.productName} (duration: {event.viewDuration}ms)")
+        else:
+            print(f"  - {event.eventType}: {event.productName}")
+    
+    return {"success": True, "eventsReceived": len(batch.events)}
+
+@app.get("/analytics-realtime", response_class=HTMLResponse)
+async def get_realtime_analytics():
+    """
+    Display real-time analytics dashboard with event tracking
+    """
+    # Aggregate events by ADID
+    adid_stats: Dict[str, Dict] = defaultdict(lambda: {
+        "view_starts": 0,
+        "view_ends": 0,
+        "clicks": 0,
+        "total_view_duration": 0,
+        "products_viewed": set(),
+        "products_clicked": set(),
+        "last_activity": None
+    })
+    
+    # Aggregate events by product
+    product_stats: Dict[str, Dict] = defaultdict(lambda: {
+        "clicks": 0,
+        "total_view_duration": 0,
+        "unique_adids": set()
+    })
+    
+    for event in analytics_events:
+        adid = event["adid"]
+        product_name = event["productName"]
+        event_type = event["eventType"]
+        
+        # Update last activity
+        adid_stats[adid]["last_activity"] = event["receivedAt"]
+        
+        # Track by event type
+        if event_type == "view_start":
+            adid_stats[adid]["view_starts"] += 1
+            adid_stats[adid]["products_viewed"].add(product_name)
+            product_stats[product_name]["unique_adids"].add(adid)
+        elif event_type == "view_end":
+            adid_stats[adid]["view_ends"] += 1
+            if event["viewDuration"] is not None:
+                duration = event["viewDuration"]
+                adid_stats[adid]["total_view_duration"] += duration
+                product_stats[product_name]["total_view_duration"] += duration
+        elif event_type == "view":
+            # Periodic view event (every 10 seconds of continuous viewing)
+            if event["viewDuration"] is not None:
+                duration = event["viewDuration"]
+                adid_stats[adid]["total_view_duration"] += duration
+                product_stats[product_name]["total_view_duration"] += duration
+                adid_stats[adid]["products_viewed"].add(product_name)
+                product_stats[product_name]["unique_adids"].add(adid)
+        elif event_type == "click":
+            adid_stats[adid]["clicks"] += 1
+            adid_stats[adid]["products_clicked"].add(product_name)
+            product_stats[product_name]["clicks"] += 1
+    
+    # Generate HTML
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Real-Time Analytics Dashboard</title>
+        <meta http-equiv="refresh" content="5">
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 20px;
+                min-height: 100vh;
+            }
+            .container { max-width: 1400px; margin: 0 auto; }
+            .header {
+                background: white;
+                padding: 30px;
+                border-radius: 15px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                margin-bottom: 30px;
+            }
+            .header h1 {
+                font-size: 32px;
+                color: #2d3748;
+                margin-bottom: 10px;
+            }
+            .header p {
+                color: #718096;
+                font-size: 16px;
+            }
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+            .stat-card {
+                background: white;
+                padding: 25px;
+                border-radius: 12px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }
+            .stat-card h3 {
+                color: #718096;
+                font-size: 14px;
+                text-transform: uppercase;
+                margin-bottom: 10px;
+                font-weight: 600;
+            }
+            .stat-card .value {
+                font-size: 36px;
+                font-weight: bold;
+                color: #2d3748;
+            }
+            table {
+                width: 100%;
+                background: white;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                margin-bottom: 30px;
+            }
+            th {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 15px;
+                text-align: left;
+                font-weight: 600;
+            }
+            td {
+                padding: 15px;
+                border-bottom: 1px solid #e2e8f0;
+                color: #2d3748;
+            }
+            tr:last-child td { border-bottom: none; }
+            tr:hover { background: #f7fafc; }
+            .badge {
+                display: inline-block;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            .badge-view { background: #e6fffa; color: #047857; }
+            .badge-click { background: #fef3c7; color: #b45309; }
+            .section-title {
+                color: white;
+                font-size: 24px;
+                font-weight: bold;
+                margin: 30px 0 15px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🔥 Real-Time Analytics Dashboard</h1>
+                <p>Auto-refreshes every 5 seconds • Last update: """ + datetime.now().strftime('%Y-%m-%d %H:%M:%S') + """</p>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Unique ADIDs</h3>
+                    <div class="value">""" + str(len(adid_stats)) + """</div>
+                </div>
+            </div>
+            
+            <div class="section-title">Product Performance</div>
+            <table id="productTable">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Clicks</th>
+                        <th>View Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+    """
+    
+    # Show aggregated product performance
+    for product in sorted(product_stats.keys(), key=lambda x: product_stats[x]["clicks"], reverse=True):
+        stats = product_stats[product]
+        total_clicks = stats["clicks"]
+        total_view_seconds = stats["total_view_duration"] / 1000
+        
+        if total_clicks > 0 or total_view_seconds > 0:
+            html_content += f"""
+                    <tr>
+                        <td><strong>{product}</strong></td>
+                        <td>{total_clicks}</td>
+                        <td>{total_view_seconds:.1f}s</td>
+                    </tr>
+            """
+    
+    html_content += """
+                </tbody>
+            </table>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html_content)
 
 @app.get("/analytics", response_class=HTMLResponse)
 async def get_analytics():
