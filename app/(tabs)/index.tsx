@@ -1,6 +1,7 @@
 import { DiscountToast } from "@/components/DiscountToast";
 import { ProductDetailModal } from "@/components/ProductDetailModal";
 import { ProductItem } from "@/components/ProductItem";
+import { useCart } from "@/contexts/CartContext";
 import { ClothingItem, clothingItems } from "@/types";
 import { ClickTracker, OfferListener } from "@demoshop/sdk";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,10 +11,7 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View } from "react-native
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ShopScreen() {
-  const [cart, setCart] = useState<ClothingItem[]>([]);
-  const [discountedItems, setDiscountedItems] = useState<Set<string>>(
-    new Set()
-  );
+  const { cart, discountedItems, addToCart, addDiscountedItem } = useCart();
   const [toastItem, setToastItem] = useState<ClothingItem | null>(null);
   const [dialogItem, setDialogItem] = useState<ClothingItem | null>(null);
 
@@ -22,7 +20,7 @@ export default function ShopScreen() {
     const offerListener: OfferListener = {
       onOfferReceived: (productName: string, discount: number, couponId: string) => {
         console.log(`[Shop] Received offer for ${productName}: ${discount * 100}% off (Coupon: ${couponId})`);
-        setDiscountedItems((prev) => new Set(prev).add(productName));
+        addDiscountedItem(productName);
         const item = clothingItems.find((item) => item.name === productName);
         if (item) {
           setToastItem(item);
@@ -36,16 +34,12 @@ export default function ShopScreen() {
         onOfferReceived: () => {},
       });
     };
-  }, []);
-
-  const handleAddToCart = (item: ClothingItem) => {
-    setCart((prev) => [...prev, item]);
-  };
+  }, [addDiscountedItem]);
 
   const renderItem = ({ item }: { item: ClothingItem }) => (
     <ProductItem
       item={item}
-      onAddToCart={handleAddToCart}
+      onAddToCart={addToCart}
       onItemClick={(item) => setDialogItem(item)}
       isDiscounted={discountedItems.has(item.name)}
     />
@@ -58,13 +52,7 @@ export default function ShopScreen() {
         <TouchableOpacity
           style={styles.cartButton}
           onPress={() => {
-            router.push({
-              pathname: "/(tabs)/cart",
-              params: {
-                cart: JSON.stringify(cart),
-                discountedItems: JSON.stringify(Array.from(discountedItems)),
-              },
-            });
+            router.push("/(tabs)/cart");
           }}
         >
           <Ionicons name="cart" size={28} color="#007AFF" />
@@ -98,9 +86,7 @@ export default function ShopScreen() {
         item={dialogItem}
         visible={dialogItem !== null}
         onDismiss={() => setDialogItem(null)}
-        onAddToCart={(item) => {
-          handleAddToCart(item);
-        }}
+        onAddToCart={addToCart}
         isDiscounted={dialogItem ? discountedItems.has(dialogItem.name) : false}
       />
     </SafeAreaView>

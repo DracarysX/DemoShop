@@ -47,11 +47,10 @@ async def get_product_similarity(threshold: float = 0.1):
     users_list = sorted(list(all_users))
     
     # Build engagement matrix: rows=products, cols=users
-    # Track clicks and views separately first
-    click_matrix = np.zeros((len(products_list), len(users_list)))
-    view_matrix = np.zeros((len(products_list), len(users_list)))
+    # Weight: Each click = 10 points, Each second of view = 0.1 points
+    # This gives clicks 100x more weight than views (80/20 effective ratio)
+    engagement_matrix = np.zeros((len(products_list), len(users_list)))
     
-    # Fill matrices with raw data
     for event in analytics_events:
         product_id = event.get("productId", "unknown")
         product_name = event["productName"]
@@ -62,20 +61,12 @@ async def get_product_similarity(threshold: float = 0.1):
         user_idx = users_list.index(adid)
         
         if event["eventType"] == "click":
-            click_matrix[product_idx, user_idx] += 1.0
+            # Each click contributes 10 points (high weight)
+            engagement_matrix[product_idx, user_idx] += 10.0
         elif event["eventType"] == "view":
+            # Each second of view contributes 0.1 points (low weight)
             view_duration = event.get("viewDuration", 0)
-            view_matrix[product_idx, user_idx] += view_duration / 1000.0  # Convert ms to seconds
-    
-    # Normalize clicks and views to 0-1 scale
-    max_clicks = np.max(click_matrix) if np.max(click_matrix) > 0 else 1.0
-    max_views = np.max(view_matrix) if np.max(view_matrix) > 0 else 1.0
-    
-    normalized_clicks = click_matrix / max_clicks
-    normalized_views = view_matrix / max_views
-    
-    # Weighted engagement: 80% clicks, 20% views
-    engagement_matrix = (0.8 * normalized_clicks) + (0.2 * normalized_views)
+            engagement_matrix[product_idx, user_idx] += (view_duration / 1000.0) * 0.1
     
     # Calculate cosine similarity between products
     similarity_matrix = cosine_similarity(engagement_matrix)

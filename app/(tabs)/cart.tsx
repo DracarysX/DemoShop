@@ -1,8 +1,9 @@
+import { useCart } from "@/contexts/CartContext";
 import { ClothingItem } from "@/types";
 import { ClickTracker } from "@demoshop/sdk";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { router } from "expo-router";
+import React from "react";
 import {
     Alert,
     FlatList,
@@ -15,38 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function CartScreen() {
-  const params = useLocalSearchParams();
-  
-  const initialCart = useMemo(() => {
-    try {
-      if (params.cart && typeof params.cart === "string") {
-        return JSON.parse(params.cart);
-      }
-    } catch (error) {
-      console.error("Failed to parse cart data:", error);
-    }
-    return [];
-  }, [params.cart]);
-
-  const initialDiscountedItems = useMemo((): Set<string> => {
-    try {
-      if (params.discountedItems && typeof params.discountedItems === "string") {
-        const parsed = JSON.parse(params.discountedItems);
-        return new Set<string>(parsed);
-      }
-    } catch (error) {
-      console.error("Failed to parse discounted items:", error);
-    }
-    return new Set<string>();
-  }, [params.discountedItems]);
-
-  const [cart, setCart] = useState<ClothingItem[]>(initialCart);
-  const [discountedItems, setDiscountedItems] = useState<Set<string>>(initialDiscountedItems);
-
-  useEffect(() => {
-    setCart(initialCart);
-    setDiscountedItems(initialDiscountedItems);
-  }, [initialCart, initialDiscountedItems]);
+  const { cart, discountedItems, clearCart } = useCart();
 
   const calculateTotal = () => {
     return cart.reduce((total, item) => {
@@ -78,12 +48,14 @@ export default function CartScreen() {
         console.log('[Cart] Purchase successfully tracked');
       }
       
-      // Clear local state
-      setCart([]);
-      setDiscountedItems(new Set());
+      // Clear global cart
+      clearCart();
       
       Alert.alert("Purchase Complete", `Total: $${total.toFixed(2)}\n\nYour cart has been cleared.`, [
-        { text: "OK", onPress: () => router.back() },
+        { 
+          text: "OK", 
+          onPress: () => router.back()
+        },
       ]);
     } catch (error) {
       console.error('[Cart] Error during purchase:', error);
